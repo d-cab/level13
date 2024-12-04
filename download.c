@@ -9,17 +9,20 @@ const int BUFF_SIZE = 1000;
 int menu(FILE *f, char buffer[]);
 void list(FILE *f, char buffer[]);
 void download(FILE *f, char buffer[]);
-void quit(FILE *f);
+void quit(FILE *f, int fd);
 void ping(FILE *f, char buffer[]);
 int getsize(FILE *f, char buffer[], char filename[]);
+void tofile(FILE *f, char buffer[], char filename[], int size);
+void readstr(char str[]);
 
 int main() {
-    char domain[20];
+    char domain[20] = "london";
     char buffer[1000];
     int selection;
 
-    printf("Which server? (london/newark) > ");
+    /*printf("Which server? (london/newark) > ");
     scanf("%s", domain);
+    */
     strcat(domain, ".cs.sierracollege.edu");
     printf("%s\n", domain);
 
@@ -49,15 +52,11 @@ int main() {
                 break;
             case 2:
                 printf("downloading...\n");
-                    if (f == NULL) {
-                        printf("Error: File pointer is NULL.\n");
-                        exit(1);
-                    }
                 download(f, buffer);
                 break;
             case 3:
                 printf("quiting...\n");
-                quit(f);
+                quit(f, fd);
                 break;
              default:
                 printf("Could not recognize input, try again.\n");
@@ -77,6 +76,8 @@ int menu(FILE *f, char buffer[]) {
 void list(FILE *f, char buffer[]) {
     
     fprintf(f, "LIST\n");
+    fflush(f);
+
     fgets(buffer, BUFF_SIZE, f);
     while(1) {
         fgets(buffer, BUFF_SIZE, f);
@@ -87,43 +88,33 @@ void list(FILE *f, char buffer[]) {
     
 }
 void download(FILE *f, char buffer[]) {
-    if (f == NULL) {
-                        printf("Error: File pointer is NULL.\n");
-                        exit(1);
-                    }
-    printf("WE MADE IT TO THE DOWNLOAD FUNCTION");
 
-    char filename[50] = "small.txt";
+    char filename[100] = "hashes1.txt\n";
+    //char filename[100];
+    char command[100];
+    int size;
 
-    printf("filename: %s", filename);
-
-    int size = getsize(f, buffer, filename);
-    char command[50] = "GET ";
-
-    printf("command before: %s", command);
-
-    strcat(command, filename);
-
-    printf("command after: %s", command);
+    /*printf("Enter filename > ");
+    scanf(" %s", filename);
+    */
+    sprintf(command, "GET %s", filename);
+    size = getsize(f, buffer, filename);
 
     fprintf(f, "%s", command);
-    fscanf(f, "%s", buffer);
+    fflush(f);
 
-    printf("this should say OK+ +OK or -ERR : ");
-    printf("%s", buffer);
 
-    if(strcmp(buffer, "+OK") == 0) {
-        fscanf(f, "%s", buffer);
-        printf("%s", buffer);
-    }
-    
 }
-void quit(FILE *f) {
-
+void quit(FILE *f, int fd) {
+    fprintf(f, "QUIT\n");
+    fclose(f);
+    close(fd);
 }
 
 void ping(FILE *f, char buffer[]) {
     fprintf(f, "HELO\n");
+    fflush(f);
+
     fgets(buffer, BUFF_SIZE, f);
     printf("%s", buffer);
 }
@@ -134,6 +125,8 @@ int getsize(FILE *f, char buffer[], char filename[]) {
     strcat(command, filename);
 
     fprintf(f,"%s" , command);
+    fflush(f);
+    
     fscanf(f, "%s", buffer);
 
     if(strcmp(buffer, "+OK") == 0) {
@@ -145,4 +138,37 @@ int getsize(FILE *f, char buffer[], char filename[]) {
     }
 
     return size;
+}
+
+void tofile(FILE *f, char buffer[], char filename[], int size) {
+
+    FILE *file = fopen(filename, "w");
+    if (!file) {
+        printf("Could not open file for writing.\n");
+        return;
+    }
+
+    int transferred = 0;
+    int remaining;
+    int totransfer;
+    int received;
+    while (transferred < size) {
+        remaining = size - transferred;
+
+        if (remaining < BUFF_SIZE) {
+            totransfer = remaining;
+        } else {
+            totransfer = BUFF_SIZE;
+        }
+
+        received = fread(buffer, 1, totransfer, f);  
+        if (received <= 0) {
+            printf("Error reading data from server\n");
+            break;        
+        }
+
+        fwrite(buffer, 1, received, file);
+        transferred = transferred + received;    
+
+    }
 }
