@@ -4,13 +4,17 @@
 #include <unistd.h>
 #include <string.h>
 
-int menu(FILE *f);
-void list(FILE *f);
+const int BUFF_SIZE = 1000;
+
+int menu(FILE *f, char buffer[]);
+void list(FILE *f, char buffer[]);
 void download(FILE *f);
 void quit(FILE *f);
+void ping(FILE *f, char buffer[]);
 
 int main() {
     char domain[20];
+    char buffer[1000];
     int selection;
 
     printf("Which server? (london/newark) > ");
@@ -29,18 +33,16 @@ int main() {
 
     // Convert to file pointer
     FILE *f = fdopen(fd, "r+");
-    char greetings[10];
-    fscanf(f, "%s", greetings);
-    printf("%s", greetings);
-    fscanf(f, "%s", greetings);
-    printf("%s", greetings);
+    fgets(buffer, BUFF_SIZE, f);
+    printf("%s", buffer);
+    ping(f, buffer);
 
     //run menu
-    selection = menu(f);
+    selection = menu(f, buffer);
     switch (selection) {
         case 1:
-            list(f);
             printf("listing...\n");
+            list(f, buffer);
             break;
         case 2:
             printf("downloading...\n");
@@ -56,37 +58,35 @@ int main() {
     }
 }
 
-int menu(FILE *f) {
+int menu(FILE *f, char buffer[]) {
     int selection;
-    char buffer[10];
 
     printf("\n1 - List files\n2 - Download\n3 - Quit\n> ");
     scanf("%d", &selection);
     return selection;
 }
 
-void list(FILE *f) {
-    char buffer[1000];
+void list(FILE *f, char buffer[]) {
+    
     fprintf(f, "LIST\n");
-
-    fscanf(f, "%s", buffer);
-    printf("%s", buffer);
-    fscanf(f, "%s", buffer);
-    printf("%s", buffer);
-    fscanf(f, "%s", buffer);
-    printf("%s", buffer);
-    fscanf(f, "%s", buffer);
-    printf("%s", buffer);
-    /*while(1) {
-        fscanf(f, "%s", buffer);
-        if(strcmp(buffer, ".\n") == 0) break;
+    fgets(buffer, BUFF_SIZE, f);
+    while(1) {
+        fgets(buffer, BUFF_SIZE, f);
+        if(strcmp(buffer, ".\n") == 0) { break; }
         printf("%s", buffer);
     }
-    */
+    
+    
 }
 void download(FILE *f) {
 
 }
 void quit(FILE *f) {
 
+}
+
+void ping(FILE *f, char buffer[]) {
+    fprintf(f, "HELO\n");
+    fgets(buffer, BUFF_SIZE, f);
+    printf("%s", buffer);
 }
