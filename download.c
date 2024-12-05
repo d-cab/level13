@@ -14,15 +14,18 @@ void ping(FILE *f, char buffer[]);
 int getsize(FILE *f, char buffer[], char filename[]);
 void tofile(FILE *f, char buffer[], char filename[], int size);
 void readstr(char str[]);
+void trim(char string[]);
+int stringLength(char string[]);
 
 int main() {
-    char domain[20] = "london";
+    char domain[20];
     char buffer[1000];
     int selection;
 
-    /*printf("Which server? (london/newark) > ");
-    scanf("%s", domain);
-    */
+    printf("Which server? (london/newark) > ");
+    fgets(domain, 20, stdin);
+    trim(domain);
+
     strcat(domain, ".cs.sierracollege.edu");
     printf("%s\n", domain);
 
@@ -36,9 +39,13 @@ int main() {
     }
 
     // Convert to file pointer
+
+    // recieve greeting
     FILE *f = fdopen(fd, "r+");
     fgets(buffer, BUFF_SIZE, f);
     printf("%s", buffer);
+    
+    // test with ping
     ping(f, buffer);
 
     while(1) {
@@ -79,6 +86,13 @@ void list(FILE *f, char buffer[]) {
     fflush(f);
 
     fgets(buffer, BUFF_SIZE, f);
+
+    //check if server responded properly
+    if(strcmp(buffer, "+OK\n") != 0) {
+        printf("Error printing list\n");
+        exit(1);
+    }
+
     while(1) {
         fgets(buffer, BUFF_SIZE, f);
         if(strcmp(buffer, ".\n") == 0) { break; }
@@ -89,26 +103,45 @@ void list(FILE *f, char buffer[]) {
 }
 void download(FILE *f, char buffer[]) {
 
-    char filename[100] = "hashes1.txt\n";
+    char filename[100] = "small.txt\n";
     //char filename[100];
     char command[100];
     int size;
 
+    //read user input
     /*printf("Enter filename > ");
     scanf(" %s", filename);
     */
-    sprintf(command, "GET %s", filename);
+
+    //retrieve size
     size = getsize(f, buffer, filename);
 
+    // send command to server
+    sprintf(command, "GET %s", filename);
     fprintf(f, "%s", command);
     fflush(f);
 
+    //ensure server has recieved command
+    fgets(buffer, BUFF_SIZE, f);
 
+    printf("Command: %sResponse: %s\n", command, buffer);
+
+    /*if(strcmp(buffer, "+OK\n") == 0) {
+        tofile(f, buffer, filename, size);
+    }
+    else {
+        printf("Error in downloading file\n");
+        return;
+    }
+    */
+
+    tofile(f, buffer, filename, size);
 }
 void quit(FILE *f, int fd) {
     fprintf(f, "QUIT\n");
     fclose(f);
     close(fd);
+    exit(1);
 }
 
 void ping(FILE *f, char buffer[]) {
@@ -131,10 +164,10 @@ int getsize(FILE *f, char buffer[], char filename[]) {
 
     if(strcmp(buffer, "+OK") == 0) {
         fscanf(f, "%d", &size);
-        printf("%d", size);
+        printf("Retrieved size: %d\n\n", size);
     }
     else {
-        printf("could not find file named %s", filename);
+        printf("Could not find file named %s", filename);
     }
 
     return size;
@@ -142,18 +175,24 @@ int getsize(FILE *f, char buffer[], char filename[]) {
 
 void tofile(FILE *f, char buffer[], char filename[], int size) {
 
+    // create file pointer for writing
     FILE *file = fopen(filename, "w");
     if (!file) {
         printf("Could not open file for writing.\n");
         return;
     }
 
+    printf("file opened\n");
+
     int transferred = 0;
-    int remaining;
-    int totransfer;
-    int received;
+    int remaining = 0;
+    int totransfer = 0;
+    int received = 0;
+    int i = 1;
     while (transferred < size) {
         remaining = size - transferred;
+
+        printf("elements remaining on cycle %d: %d\n", i, remaining);
 
         if (remaining < BUFF_SIZE) {
             totransfer = remaining;
@@ -161,14 +200,33 @@ void tofile(FILE *f, char buffer[], char filename[], int size) {
             totransfer = BUFF_SIZE;
         }
 
-        received = fread(buffer, 1, totransfer, f);  
+        printf("elements to transfer on cycle %d: %d\n", i, totransfer);
+
+        received = fread(buffer, 1, totransfer, f);
+        printf("elements read on cycle %d: %d\n", i, received);
         if (received <= 0) {
             printf("Error reading data from server\n");
             break;        
         }
-
+        printf("transfer %d: %s", i, buffer);
         fwrite(buffer, 1, received, file);
         transferred = transferred + received;    
-
+        i++;
     }
+}
+
+// use length to check if character before null character is newline, then remove
+void trim(char string[]) {
+    if(string[stringLength(string) - 1] == '\n') {
+        string[stringLength(string) - 1] = '\0';
+    }
+}
+
+//count until null character is found
+int stringLength(char string[]) {
+    int i = 0;
+    while(string[i] != '\0') {
+        i++;
+    }
+    return i;
 }
