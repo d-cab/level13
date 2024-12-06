@@ -75,7 +75,7 @@ int main() {
 int menu(FILE *f, char buffer[]) {
     int selection;
 
-    printf("\n1 - List files\n2 - Download\n3 - Quit\n> ");
+    printf("\n1 - List files\n2 - Download\n3 - Quit\nEnter a number (1-3) > ");
     scanf("%d", &selection);
     return selection;
 }
@@ -136,6 +136,7 @@ void download(FILE *f, char buffer[]) {
     */
 
     tofile(f, buffer, filename, size);
+
 }
 void quit(FILE *f, int fd) {
     fprintf(f, "QUIT\n");
@@ -201,6 +202,7 @@ void tofile(FILE *f, char buffer[], char filename[], int size) {
         }
 
         printf("elements to transfer on cycle %d: %d\n", i, totransfer);
+        printf("buffer on cycle %d %s\n", i, buffer);
 
         received = fread(buffer, 1, totransfer, f);
         printf("elements read on cycle %d: %d\n", i, received);
