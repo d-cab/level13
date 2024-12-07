@@ -9,11 +9,11 @@ const int BUFF_SIZE = 1000;
 
 char menu(FILE *f, char buffer[]);
 void list(FILE *f, char buffer[]);
-void download(FILE *f, char buffer[], char filename[]);
+void download(FILE *f, char filename[]);
+void tofile(FILE *f, char filename[], int size);
 void quit(FILE *f, int fd);
 void ping(FILE *f, char buffer[]);
-int getsize(FILE *f, char buffer[], char filename[]);
-void tofile(FILE *f, char buffer[], char filename[], int size);
+int getsize(FILE *f, char filename[]);
 void readstr(char str[]);
 void trim(char string[]);
 int stringLength(char string[]);
@@ -68,7 +68,7 @@ int main() {
                 trim(filename);
                 printf("Filename: %s\n", filename);
 
-                download(f, buffer, filename);
+                download(f, filename);
                 break;
             case 'Q':
                 printf("quiting...\n");
@@ -112,37 +112,77 @@ void list(FILE *f, char buffer[]) {
     
     
 }
-void download(FILE *f, char buffer[], char filename[]) {
+void download(FILE *f, char filename[]) {
 
-    char command[100];
     int size;
-    
+    char buffer[BUFF_SIZE];
+
     //retrieve size
     printf("Going to get the size of this file [%s]!\n", filename);
-    size = getsize(f, buffer, filename);
+    size = getsize(f, filename);
 
-    // send command to server
-    sprintf(command, "GET %s\n", filename);
-    fprintf(f, "%s", command);
+    // send download command to server
+    fprintf(f, "GET %s\n", filename);
     fflush(f);
 
-    //ensure server has recieved command
-    fgets(buffer, BUFF_SIZE, f);
+    //receive response from server
+    int received = fread(buffer, 1, 4, f);
+    printf("Response bytes receieved: %d\n", received);
 
-    printf("Command: %sResponse: %s\n\n", command, buffer);
+    // if(strcmp(buffer, "+OK\0") != 0/*|| received <= 0 != 0*/) {
+    //     printf("Error: Server did not accept command.\n");
+    //     return;
+    // }
 
-    /*if(strcmp(buffer, "+OK\n") == 0) {
-        tofile(f, buffer, filename, size);
-    }
-    else {
-        printf("Error in downloading file\n");
-        return;
-    }
-    */
+    printf("Command: GET %s\nResponse: %s\n", filename, buffer);
 
-    tofile(f, buffer, filename, size);
+    //write contents to file
+    tofile(f, filename, size);
 
 }
+void tofile(FILE *f, char filename[], int size) {
+
+    char buffer[BUFF_SIZE];
+
+    // create file pointer for writing
+    FILE *file = fopen(filename, "w");
+    if (!file) {
+        printf("Could not open file for writing.\n");
+        return;
+    }
+
+    printf("File opened for writing.\n");
+
+    int received;
+    int transferred = 0;
+    int to_transfer = 0;
+
+    printf("Starting download of %d bytes...\n", size);
+    while (transferred < size) {
+
+        // if remaining is less than buff size, transfer reamining, else transfer the whole buffer
+        to_transfer = (size - transferred < BUFF_SIZE) ? size - transferred : BUFF_SIZE;
+
+        received = fread(buffer, sizeof(char), to_transfer, f);
+        printf("Bytes returned from fread: %d\n", received);
+
+        printf("Buffer after fread: %s\n", buffer);
+
+        if (received <= 0) {
+            printf("Error: Could not read data from server\n");
+            break;        
+        }
+
+        fwrite(buffer, 1, received, file);
+        transferred += received;    
+
+        printf("transfered %d/%d\n", transferred, size);
+    }
+    fclose(file);
+    if(transferred == size) { printf("Download complete.\n"); }
+    else { printf("Donwload failed.\n"); }
+}
+
 void quit(FILE *f, int fd) {
     fprintf(f, "QUIT\n");
     fclose(f);
@@ -158,66 +198,32 @@ void ping(FILE *f, char buffer[]) {
     printf("%s", buffer);
 }
 
-int getsize(FILE *f, char buffer[], char filename[]) {    
-    int size;
-    char command[50] = "SIZE ";
-    strcat(command, filename);
+int getsize(FILE *f, char filename[]) {    
+    
+    int size = 0;
+    char temp[10];
+    char buffer[BUFF_SIZE];
 
-    fprintf(f,"%s\n" , command);
+    // send command
+    fprintf(f,"SIZE %s\n", filename);
     fflush(f);
     
-    fscanf(f, "%s", buffer);
+    // receive response
+    fgets(buffer, BUFF_SIZE, f);
 
-    if(strcmp(buffer, "+OK") == 0) {
-        fscanf(f, "%d", &size);
-        printf("Retrieved size: %d\n\n", size);
+    // check for proper response
+    if(strncmp(buffer, "-ERR", 4) == 0) {
+        printf("Could not find file named [%s]\n", filename);
+        return -1;
     }
     else {
-        printf("Could not find file named %s\n", filename);
+        sscanf(buffer, "%s %d", temp, &size);
+        printf("Retrieved size: %d\n", size);
     }
 
     return size;
 }
 
-void tofile(FILE *f, char buffer[], char filename[], int size) {
-
-    // create file pointer for writing
-    FILE *file = fopen(filename, "w");
-    if (!file) {
-        printf("Could not open file for writing.\n");
-        return;
-    }
-
-    printf("file opened\n");
-
-    int transferred = 0;
-    int to_transfer = 0;
-    int received = 0;
-
-    fgets(buffer, BUFF_SIZE, f);
-    
-    printf("Starting download of %d bytes...\n", size);
-    while (transferred < size) {
-
-        // if remaining is less than buff size, transfer reamining, else transfer the whole buffer
-        to_transfer = (size - transferred < BUFF_SIZE) ? size - transferred : BUFF_SIZE;
-
-        received = fread(buffer, 1, to_transfer, f);
-
-        if (received <= 0) {
-            printf("Error: Could not read data from server\n");
-            break;        
-        }
-
-        fwrite(buffer, 1, received, file);
-        transferred += received;    
-
-        printf("transfered %d/%d", transferred, size);
-    }
-    fclose(file);
-    if(transferred == size) { printf("Download complete.\n"); }
-    else { printf("Donwload failed.\n"); }
-}
 
 // use length to check if character before null character is newline, then remove
 void trim(char string[]) {
