@@ -3,12 +3,13 @@
 #include <libsocket/libinetsocket.h>
 #include <unistd.h>
 #include <string.h>
+#include <ctype.h>
 
 const int BUFF_SIZE = 1000;
 
-int menu(FILE *f, char buffer[]);
+char menu(FILE *f, char buffer[]);
 void list(FILE *f, char buffer[]);
-void download(FILE *f, char buffer[]);
+void download(FILE *f, char buffer[], char filename[]);
 void quit(FILE *f, int fd);
 void ping(FILE *f, char buffer[]);
 int getsize(FILE *f, char buffer[], char filename[]);
@@ -16,13 +17,16 @@ void tofile(FILE *f, char buffer[], char filename[], int size);
 void readstr(char str[]);
 void trim(char string[]);
 int stringLength(char string[]);
+void clearstdin();
 
 int main() {
     char domain[20];
     char buffer[1000];
-    int selection;
+    char filename[100];
+    char filename1[100];
+    char selection;
 
-    printf("Which server? (london/newark) > ");
+    printf("Which server? (london/newark):\n");
     fgets(domain, 20, stdin);
     trim(domain);
 
@@ -53,15 +57,20 @@ int main() {
         //run menu
         selection = menu(f, buffer);
         switch (selection) {
-            case 1:
+            case 'L':
                 printf("listing...\n");
                 list(f, buffer);
                 break;
-            case 2:
+            case 'D':
                 printf("downloading...\n");
-                download(f, buffer);
+                printf("Enter filename:\n");
+                fgets(filename, 100, stdin);
+                trim(filename);
+                printf("Filename: %s\n", filename);
+
+                download(f, buffer, filename);
                 break;
-            case 3:
+            case 'Q':
                 printf("quiting...\n");
                 quit(f, fd);
                 break;
@@ -72,12 +81,14 @@ int main() {
     }
 }
 
-int menu(FILE *f, char buffer[]) {
-    int selection;
+char menu(FILE *f, char buffer[]) {
+    char selection[3];
 
-    printf("\n1 - List files\n2 - Download\n3 - Quit\nEnter a number (1-3) > ");
-    scanf("%d", &selection);
-    return selection;
+    printf("\nL - List files\nD - Download\nQ - Quit\nEnter selection:\n");
+    //clearstdin();
+    fgets(selection, 3, stdin);
+    printf("Recieved input: '%c'\n", selection[0]);
+    return toupper(selection[0]);
 }
 
 void list(FILE *f, char buffer[]) {
@@ -101,30 +112,24 @@ void list(FILE *f, char buffer[]) {
     
     
 }
-void download(FILE *f, char buffer[]) {
+void download(FILE *f, char buffer[], char filename[]) {
 
-    char filename[100] = "small.txt\n";
-    //char filename[100];
     char command[100];
     int size;
-
-    //read user input
-    /*printf("Enter filename > ");
-    scanf(" %s", filename);
-    */
-
+    
     //retrieve size
+    printf("Going to get the size of this file [%s]!\n", filename);
     size = getsize(f, buffer, filename);
 
     // send command to server
-    sprintf(command, "GET %s", filename);
+    sprintf(command, "GET %s\n", filename);
     fprintf(f, "%s", command);
     fflush(f);
 
     //ensure server has recieved command
     fgets(buffer, BUFF_SIZE, f);
 
-    printf("Command: %sResponse: %s\n", command, buffer);
+    printf("Command: %sResponse: %s\n\n", command, buffer);
 
     /*if(strcmp(buffer, "+OK\n") == 0) {
         tofile(f, buffer, filename, size);
@@ -158,7 +163,7 @@ int getsize(FILE *f, char buffer[], char filename[]) {
     char command[50] = "SIZE ";
     strcat(command, filename);
 
-    fprintf(f,"%s" , command);
+    fprintf(f,"%s\n" , command);
     fflush(f);
     
     fscanf(f, "%s", buffer);
@@ -168,7 +173,7 @@ int getsize(FILE *f, char buffer[], char filename[]) {
         printf("Retrieved size: %d\n\n", size);
     }
     else {
-        printf("Could not find file named %s", filename);
+        printf("Could not find file named %s\n", filename);
     }
 
     return size;
@@ -186,35 +191,32 @@ void tofile(FILE *f, char buffer[], char filename[], int size) {
     printf("file opened\n");
 
     int transferred = 0;
-    int remaining = 0;
-    int totransfer = 0;
+    int to_transfer = 0;
     int received = 0;
-    int i = 1;
+
+    fgets(buffer, BUFF_SIZE, f);
+    
+    printf("Starting download of %d bytes...\n", size);
     while (transferred < size) {
-        remaining = size - transferred;
 
-        printf("elements remaining on cycle %d: %d\n", i, remaining);
+        // if remaining is less than buff size, transfer reamining, else transfer the whole buffer
+        to_transfer = (size - transferred < BUFF_SIZE) ? size - transferred : BUFF_SIZE;
 
-        if (remaining < BUFF_SIZE) {
-            totransfer = remaining;
-        } else {
-            totransfer = BUFF_SIZE;
-        }
+        received = fread(buffer, 1, to_transfer, f);
 
-        printf("elements to transfer on cycle %d: %d\n", i, totransfer);
-        printf("buffer on cycle %d %s\n", i, buffer);
-
-        received = fread(buffer, 1, totransfer, f);
-        printf("elements read on cycle %d: %d\n", i, received);
         if (received <= 0) {
-            printf("Error reading data from server\n");
+            printf("Error: Could not read data from server\n");
             break;        
         }
-        printf("transfer %d: %s", i, buffer);
+
         fwrite(buffer, 1, received, file);
-        transferred = transferred + received;    
-        i++;
+        transferred += received;    
+
+        printf("transfered %d/%d", transferred, size);
     }
+    fclose(file);
+    if(transferred == size) { printf("Download complete.\n"); }
+    else { printf("Donwload failed.\n"); }
 }
 
 // use length to check if character before null character is newline, then remove
@@ -231,4 +233,10 @@ int stringLength(char string[]) {
         i++;
     }
     return i;
+}
+
+// clears stdin
+void clearstdin() {
+    int c;
+    while ((c = getchar()) != '\n' && c != EOF);
 }
