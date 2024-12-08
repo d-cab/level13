@@ -13,7 +13,6 @@ void list(FILE *f, char buffer[]);
 void download(FILE *f, char filename[]);
 void tofile(FILE *f, char filename[], int size);
 void quit(FILE *f, int fd);
-void ping(FILE *f, char buffer[]);
 int getsize(FILE *f, char filename[]);
 void readstr(char str[]);
 void trim(char string[]);
@@ -28,13 +27,14 @@ int main() {
     char filename1[100];
     char selection;
 
+    //retrieve server address
     printf("Which server? (london/newark):\n");
     fgets(domain, 20, stdin);
     trim(domain);
-
     strcat(domain, ".cs.sierracollege.edu");
-    printf("%s\n", domain);
+    printf("Establishing connection to %s...\n", domain);
 
+    // Convert to file pointer
     int fd = create_inet_stream_socket(domain, "3456", LIBSOCKET_IPv4, 0);
     
     //ensure connection
@@ -43,19 +43,14 @@ int main() {
         printf("Can't create socket\n");
         exit(1);
     }
-
-    // Convert to file pointer
+    printf("Successfully connected.\n");
 
     // recieve greeting
     FILE *f = fdopen(fd, "r+");
     fgets(buffer, BUFF_SIZE, f);
     printf("%s", buffer);
-    
-    // test with ping
-    ping(f, buffer);
 
     while(1) {
-
         //run menu
         selection = menu(f, buffer);
         switch (selection) {
@@ -66,7 +61,6 @@ int main() {
                 printf("Enter filename:\n");
                 fgets(filename, 100, stdin);
                 trim(filename);
-                printfilename(filename);
                 download(f, filename);
                 break;
             case 'Q':
@@ -108,6 +102,7 @@ void list(FILE *f, char buffer[]) {
 
     printf("\n%-20sSize:\n\n", "Filename:");
 
+    // format filenames and sizes
     while(1) {
         fgets(buffer, BUFF_SIZE, f);
         if(strcmp(buffer, ".\n") == 0) { break; }
@@ -116,21 +111,22 @@ void list(FILE *f, char buffer[]) {
         sizetostring(strsize, size);
         printf("%10s\n", strsize);
     }
-    
-    
 }
+
+// starts the download process by retrieving the size and asking for overwrite
 void download(FILE *f, char filename[]) {
 
     int size;
     char buffer[BUFF_SIZE];
 
+    // if file already exists, ask to overwrite
     char input[10];
     if (access(filename, F_OK) == 0) {
-        printf("Would you like to override [%s]? (Y/N):\n", filename);
+        printf("Would you like to overwrite [%s]? (Y/N):\n", filename);
         fgets(input, 10, stdin);
         while(toupper(input[0]) != 'Y' && toupper(input[0]) != 'N') {
             printf("Could not recognize input.\n");
-            printf("Would you like to override [%s]? (Y/N):\n", filename);
+            printf("Would you like to overwrite [%s]? (Y/N):\n", filename);
             fgets(input, 10, stdin);
         }
         if(toupper(input[0]) == 'N') {
@@ -141,7 +137,6 @@ void download(FILE *f, char filename[]) {
     }
 
     //retrieve size
-    printf("Going to get the size of this file [%s]!\n", filename);
     size = getsize(f, filename);
 
     // send download command to server
@@ -155,6 +150,8 @@ void download(FILE *f, char filename[]) {
     tofile(f, filename, size);
 
 }
+
+// write contents of file from server onto a new file in directory
 void tofile(FILE *f, char filename[], int size) {
 
     char buffer[BUFF_SIZE];
@@ -202,16 +199,6 @@ void quit(FILE *f, int fd) {
     exit(1);
 }
 
-//test communication with a ping
-void ping(FILE *f, char buffer[]) {
-    fprintf(f, "HELO\n");
-    fflush(f);
-
-    fgets(buffer, BUFF_SIZE, f);
-    printf("%s", buffer);
-}
-
-
 // given a filename, communicate with the server and retrieve size
 int getsize(FILE *f, char filename[]) {    
     
@@ -233,12 +220,10 @@ int getsize(FILE *f, char filename[]) {
     }
     else {
         sscanf(buffer, "%s %d", temp, &size);
-        printf("Retrieved size: %d\n", size);
     }
 
     return size;
 }
-
 
 // use length to check if character before null character is newline, then remove
 void trim(char string[]) {
@@ -256,7 +241,6 @@ int stringLength(char string[]) {
     return i;
 }
 
-
 //compresses size into largest denominator (B, KB, MB)
 void sizetostring(char strsize[], double size) {
     if(size < 1024) {
@@ -272,6 +256,8 @@ void sizetostring(char strsize[], double size) {
 
 //print file name according to file type
 void printfilename(char filename[]) {
+
+    //extract filetype
     char* filetype = strchr(filename,'.') + sizeof(char);
     char color[10];
 
