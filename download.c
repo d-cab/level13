@@ -86,7 +86,6 @@ char menu(FILE *f, char buffer[]) {
     printf("\nL - List files\nD - Download\nQ - Quit\nEnter selection:\n");
     //clearstdin();
     fgets(selection, 3, stdin);
-    printf("Recieved input: '%c'\n", selection[0]);
     return toupper(selection[0]);
 }
 
@@ -124,6 +123,22 @@ void download(FILE *f, char filename[]) {
 
     int size;
     char buffer[BUFF_SIZE];
+
+    char input[10];
+    if (access(filename, F_OK) == 0) {
+        printf("Would you like to override [%s]? (Y/N):\n", filename);
+        fgets(input, 10, stdin);
+        while(toupper(input[0]) != 'Y' && toupper(input[0]) != 'N') {
+            printf("Could not recognize input.\n");
+            printf("Would you like to override [%s]? (Y/N):\n", filename);
+            fgets(input, 10, stdin);
+        }
+        if(toupper(input[0]) == 'N') {
+            printf("[%s] will not be downloaded.\n", filename);
+            return;
+        }
+        
+    }
 
     //retrieve size
     printf("Going to get the size of this file [%s]!\n", filename);
