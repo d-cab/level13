@@ -4,6 +4,7 @@
 #include <unistd.h>
 #include <string.h>
 #include <ctype.h>
+#include "ansi-colors.h"
 
 const int BUFF_SIZE = 1000;
 
@@ -17,7 +18,8 @@ int getsize(FILE *f, char filename[]);
 void readstr(char str[]);
 void trim(char string[]);
 int stringLength(char string[]);
-void clearstdin();
+void sizetostring(char strsize[], double size);
+void printfilename(char filename[]);
 
 int main() {
     char domain[20];
@@ -58,20 +60,17 @@ int main() {
         selection = menu(f, buffer);
         switch (selection) {
             case 'L':
-                printf("listing...\n");
                 list(f, buffer);
                 break;
             case 'D':
-                printf("downloading...\n");
                 printf("Enter filename:\n");
                 fgets(filename, 100, stdin);
                 trim(filename);
-                printf("Filename: %s\n", filename);
-
+                printfilename(filename);
                 download(f, filename);
                 break;
             case 'Q':
-                printf("quiting...\n");
+                printf("Quiting...\n");
                 quit(f, fd);
                 break;
              default:
@@ -93,21 +92,30 @@ char menu(FILE *f, char buffer[]) {
 
 void list(FILE *f, char buffer[]) {
     
+    double size;
+    char filename[100];
+    char strsize[100];
+
+    // send list command
     fprintf(f, "LIST\n");
     fflush(f);
 
-    fgets(buffer, BUFF_SIZE, f);
-
     //check if server responded properly
+    fgets(buffer, BUFF_SIZE, f);
     if(strcmp(buffer, "+OK\n") != 0) {
         printf("Error printing list\n");
         exit(1);
     }
 
+    printf("\n%-20sSize:\n\n", "Filename:");
+
     while(1) {
         fgets(buffer, BUFF_SIZE, f);
         if(strcmp(buffer, ".\n") == 0) { break; }
-        printf("%s", buffer);
+        sscanf(buffer, "%lf %s", &size, filename);
+        printfilename(filename);
+        sizetostring(strsize, size);
+        printf("%10s\n", strsize);
     }
     
     
@@ -127,14 +135,6 @@ void download(FILE *f, char filename[]) {
 
     //receive response from server
     int received = fread(buffer, 1, 4, f);
-    printf("Response bytes receieved: %d\n", received);
-
-    // if(strcmp(buffer, "+OK\0") != 0/*|| received <= 0 != 0*/) {
-    //     printf("Error: Server did not accept command.\n");
-    //     return;
-    // }
-
-    printf("Command: GET %s\nResponse: %s\n", filename, buffer);
 
     //write contents to file
     tofile(f, filename, size);
@@ -151,7 +151,6 @@ void tofile(FILE *f, char filename[], int size) {
         return;
     }
 
-    printf("File opened for writing.\n");
 
     int received;
     int transferred = 0;
@@ -164,9 +163,6 @@ void tofile(FILE *f, char filename[], int size) {
         to_transfer = (size - transferred < BUFF_SIZE) ? size - transferred : BUFF_SIZE;
 
         received = fread(buffer, sizeof(char), to_transfer, f);
-        printf("Bytes returned from fread: %d\n", received);
-
-        printf("Buffer after fread: %s\n", buffer);
 
         if (received <= 0) {
             printf("Error: Could not read data from server\n");
@@ -183,6 +179,7 @@ void tofile(FILE *f, char filename[], int size) {
     else { printf("Donwload failed.\n"); }
 }
 
+//exit from server, file, and program
 void quit(FILE *f, int fd) {
     fprintf(f, "QUIT\n");
     fclose(f);
@@ -190,6 +187,7 @@ void quit(FILE *f, int fd) {
     exit(1);
 }
 
+//test communication with a ping
 void ping(FILE *f, char buffer[]) {
     fprintf(f, "HELO\n");
     fflush(f);
@@ -198,6 +196,8 @@ void ping(FILE *f, char buffer[]) {
     printf("%s", buffer);
 }
 
+
+// given a filename, communicate with the server and retrieve size
 int getsize(FILE *f, char filename[]) {    
     
     int size = 0;
@@ -241,8 +241,31 @@ int stringLength(char string[]) {
     return i;
 }
 
-// clears stdin
-void clearstdin() {
-    int c;
-    while ((c = getchar()) != '\n' && c != EOF);
+
+//compresses size into largest denominator (B, KB, MB)
+void sizetostring(char strsize[], double size) {
+    if(size < 1024) {
+        sprintf(strsize, "%.2f B", size);
+    }
+    else if(size < 1048576) {
+        sprintf(strsize, "%.2f KB", size/1024);
+    }
+    else{
+        sprintf(strsize, "%.2f MB", size/1048576);
+    }
+}
+
+//print file name according to file type
+void printfilename(char filename[]) {
+    char* filetype = strchr(filename,'.') + sizeof(char);
+    char color[10];
+
+    if(strcmp(filetype, "txt") == 0) { strcpy(color, RED); }
+    else if(strcmp(filetype, "exe") == 0) {strcpy(color, BLU); }
+    else if(strcmp(filetype, "jpg") == 0) {strcpy(color, GRN); }
+    else if(strcmp(filetype, "raw") == 0) {strcpy(color, YEL); }
+    else if(strcmp(filetype, "mp3") == 0) {strcpy(color, CYN); }
+    else {strcpy(color, MAG); }
+    
+    printf("%s%-20s%s", color, filename, CRESET);
 }
